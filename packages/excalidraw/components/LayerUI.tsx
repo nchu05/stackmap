@@ -39,7 +39,6 @@ import { LockButton } from "./LockButton";
 import { MobileMenu } from "./MobileMenu";
 import { PasteChartDialog } from "./PasteChartDialog";
 import { Section } from "./Section";
-import { ToolboxSidebar } from "./ToolboxSidebar";
 import Stack from "./Stack";
 import { UserList } from "./UserList";
 import { PenModeButton } from "./PenModeButton";
@@ -50,6 +49,7 @@ import { ActiveConfirmDialog } from "./ActiveConfirmDialog";
 import { useEditorInterface, useStylesPanelMode } from "./App";
 import { OverwriteConfirmDialog } from "./OverwriteConfirm/OverwriteConfirm";
 import { sidebarRightIcon } from "./icons";
+import { ToolboxSidebar } from "./ToolboxSidebar";
 import { DefaultSidebar } from "./DefaultSidebar";
 import { Sidebar } from "./Sidebar/Sidebar";
 import { TTDDialog } from "./TTDDialog/TTDDialog";
@@ -65,7 +65,6 @@ import { ImageExportDialog } from "./ImageExportDialog";
 import { Island } from "./Island";
 import { JSONExportDialog } from "./JSONExportDialog";
 import { LaserPointerButton } from "./LaserPointerButton";
-import { ToolConfigSidebar } from "./ToolConfigSidebar";
 import { ToolItem } from "../data/ToolItem";
 
 import "./LayerUI.scss";
@@ -240,16 +239,6 @@ const LayerUI = ({
     </div>
   );
 
-  const [selectedTool, setSelectedTool] = useState<ToolItem | null>(null);
-
-  const handleToolSelect = (tool: ToolItem) => {
-    setSelectedTool(tool);
-  };
-
-  const handleConfigChange = (updatedTool: ToolItem) => {
-    // Handle config changes if needed
-    console.log('Tool config updated:', updatedTool);
-  };
 
   const renderSelectedShapeActions = () => {
     if (appState.activeTool.type === "toolbox") {
@@ -272,15 +261,7 @@ const LayerUI = ({
           >
             <ToolboxSidebar 
               app={app} 
-              onToolSelect={handleToolSelect} 
             />
-            {selectedTool && (
-              <ToolConfigSidebar
-                selectedTool={selectedTool}
-                onConfigChange={handleConfigChange}
-                onClose={() => setSelectedTool(null)}
-              />
-            )}
           </Island>
         </Section>
       );
@@ -686,13 +667,6 @@ const LayerUI = ({
   return (
     <UIAppStateContext.Provider value={appState}>
       <TunnelsJotaiProvider>
-        {selectedTool && (
-          <ToolConfigSidebar
-            selectedTool={selectedTool}
-            onConfigChange={handleConfigChange}
-            onClose={() => setSelectedTool(null)}
-          />
-        )}
         <TunnelsContext.Provider value={tunnels}>
           {layerUIJSX}
         </TunnelsContext.Provider>

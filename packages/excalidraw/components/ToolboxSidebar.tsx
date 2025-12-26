@@ -30,10 +30,9 @@ export const saveToolConfigs = (configs: Record<string, { link?: string; apiKey?
 
 interface ToolboxSidebarProps {
   app: AppClassProperties;
-  onToolSelect: (tool: ToolItem) => void;
 }
 
-export const ToolboxSidebar = ({ app, onToolSelect }: ToolboxSidebarProps) => {
+export const ToolboxSidebar = ({ app }: ToolboxSidebarProps) => {
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredTools = useMemo(() => {
@@ -57,8 +56,6 @@ export const ToolboxSidebar = ({ app, onToolSelect }: ToolboxSidebarProps) => {
   };
 
   const handleToolClick = (e: React.MouseEvent, tool: (typeof TOOLS)[number]) => {
-    onToolSelect(tool);
-    
     if (e.shiftKey) {
       return;
     }
@@ -113,7 +110,6 @@ export const ToolboxSidebar = ({ app, onToolSelect }: ToolboxSidebarProps) => {
               onClick={(e) => handleToolClick(e, tool)}
               onContextMenu={(e) => {
                 e.preventDefault();
-                onToolSelect(tool);
               }}
               onDragStart={(e) => handleDragStart(e, tool)}
               draggable
