@@ -1,9 +1,10 @@
 import clsx from "clsx";
-import React from "react";
+import React, { useState } from "react";
 
 import {
   CLASSES,
   DEFAULT_SIDEBAR,
+  TOOL_SIDEBAR,
   TOOL_TYPE,
   arrayToMap,
   capitalizeString,
@@ -38,6 +39,7 @@ import { LockButton } from "./LockButton";
 import { MobileMenu } from "./MobileMenu";
 import { PasteChartDialog } from "./PasteChartDialog";
 import { Section } from "./Section";
+import { ToolboxSidebar } from "./ToolboxSidebar";
 import Stack from "./Stack";
 import { UserList } from "./UserList";
 import { PenModeButton } from "./PenModeButton";
@@ -49,6 +51,7 @@ import { useEditorInterface, useStylesPanelMode } from "./App";
 import { OverwriteConfirmDialog } from "./OverwriteConfirm/OverwriteConfirm";
 import { sidebarRightIcon } from "./icons";
 import { DefaultSidebar } from "./DefaultSidebar";
+import { Sidebar } from "./Sidebar/Sidebar";
 import { TTDDialog } from "./TTDDialog/TTDDialog";
 import { Stats } from "./Stats";
 import ElementLinkDialog from "./ElementLinkDialog";
@@ -62,6 +65,8 @@ import { ImageExportDialog } from "./ImageExportDialog";
 import { Island } from "./Island";
 import { JSONExportDialog } from "./JSONExportDialog";
 import { LaserPointerButton } from "./LaserPointerButton";
+import { ToolConfigSidebar } from "./ToolConfigSidebar";
+import { ToolItem } from "../data/ToolItem";
 
 import "./LayerUI.scss";
 import "./Toolbar.scss";
@@ -235,8 +240,51 @@ const LayerUI = ({
     </div>
   );
 
+  const [selectedTool, setSelectedTool] = useState<ToolItem | null>(null);
+
+  const handleToolSelect = (tool: ToolItem) => {
+    setSelectedTool(tool);
+  };
+
+  const handleConfigChange = (updatedTool: ToolItem) => {
+    // Handle config changes if needed
+    console.log('Tool config updated:', updatedTool);
+  };
+
   const renderSelectedShapeActions = () => {
-    const isCompactMode = isCompactStylesPanel;
+    if (appState.activeTool.type === "toolbox") {
+      return (
+        <Section
+          heading="toolbox"
+          className={clsx("selected-shape-actions zen-mode-transition", {
+            "transition-left": appState.zenModeEnabled,
+          })}
+        >
+          <Island
+            padding={2}
+            style={{
+              maxHeight: `${appState.height - 166}px`,
+              display: "flex",
+              flexDirection: "column",
+              overflowY: "auto",
+              pointerEvents: "all",
+            }}
+          >
+            <ToolboxSidebar 
+              app={app} 
+              onToolSelect={handleToolSelect} 
+            />
+            {selectedTool && (
+              <ToolConfigSidebar
+                selectedTool={selectedTool}
+                onConfigChange={handleConfigChange}
+                onClose={() => setSelectedTool(null)}
+              />
+            )}
+          </Island>
+        </Section>
+      );
+    }
 
     return (
       <Section
@@ -245,7 +293,7 @@ const LayerUI = ({
           "transition-left": appState.zenModeEnabled,
         })}
       >
-        {isCompactMode ? (
+        {isCompactStylesPanel ? (
           <Island
             className={clsx("compact-shape-actions-island")}
             padding={0}
@@ -487,6 +535,7 @@ const LayerUI = ({
         }}
         tab={DEFAULT_SIDEBAR.defaultTab}
       />
+
       <DefaultOverwriteConfirmDialog />
       {appState.openDialog?.name === "ttd" && <TTDDialog __fallback />}
       {/* ------------------------------------------------------------------ */}
@@ -637,6 +686,13 @@ const LayerUI = ({
   return (
     <UIAppStateContext.Provider value={appState}>
       <TunnelsJotaiProvider>
+        {selectedTool && (
+          <ToolConfigSidebar
+            selectedTool={selectedTool}
+            onConfigChange={handleConfigChange}
+            onClose={() => setSelectedTool(null)}
+          />
+        )}
         <TunnelsContext.Provider value={tunnels}>
           {layerUIJSX}
         </TunnelsContext.Provider>

@@ -240,12 +240,14 @@ export const STRING_MIME_TYPES = {
   text: "text/plain",
   html: "text/html",
   json: "application/json",
+  uriList: "text/uri-list",
   // excalidraw data
   excalidraw: "application/vnd.excalidraw+json",
   // LEGACY: fully-qualified library JSON data
   excalidrawlib: "application/vnd.excalidrawlib+json",
   // list of excalidraw library item ids
   excalidrawlibIds: "application/vnd.excalidrawlib.ids+json",
+  toolboxItem: "application/vnd.stackmap.toolbox-item",
 } as const;
 
 export const MIME_TYPES = {
@@ -262,6 +264,7 @@ export const MIME_TYPES = {
 export const ALLOWED_PASTE_MIME_TYPES = [
   MIME_TYPES.text,
   MIME_TYPES.html,
+  MIME_TYPES.toolboxItem,
   ...Object.values(IMAGE_MIME_TYPES),
 ] as const;
 
@@ -423,10 +426,16 @@ export const DEFAULT_ELEMENT_PROPS: {
 
 export const LIBRARY_SIDEBAR_TAB = "library";
 export const CANVAS_SEARCH_TAB = "search";
+export const TOOL_CONFIG_TAB = "tool-config";
 
 export const DEFAULT_SIDEBAR = {
   name: "default",
   defaultTab: LIBRARY_SIDEBAR_TAB,
+} as const;
+
+export const TOOL_SIDEBAR = {
+  name: "tool",
+  defaultTab: TOOL_CONFIG_TAB,
 } as const;
 
 export const LIBRARY_DISABLED_TYPES = new Set([
@@ -453,6 +462,7 @@ export const TOOL_TYPE = {
   magicframe: "magicframe",
   embeddable: "embeddable",
   laser: "laser",
+  toolbox: "toolbox",
 } as const;
 
 export const EDITOR_LS_KEYS = {

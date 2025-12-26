@@ -21,6 +21,7 @@ import { Sidebar } from "./Sidebar/Sidebar";
 import { withInternalFallback } from "./hoc/withInternalFallback";
 import { LibraryIcon, searchIcon } from "./icons";
 
+
 import type { SidebarProps, SidebarTriggerProps } from "./Sidebar/common";
 
 const DefaultSidebarTrigger = withInternalFallback(

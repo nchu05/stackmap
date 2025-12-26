@@ -3,6 +3,8 @@
 // Icons are under the license https://fontawesome.com/license
 //
 
+
+
 // Note: when adding new icons, review https://developer.mozilla.org/en-US/docs/Mozilla/Developer_guide/RTL_Guidelines
 // to determine whether or not the icons should be mirrored in right-to-left languages.
 
@@ -71,6 +73,17 @@ const modifiedTablerIconProps: Opts = {
 } as const;
 
 // -----------------------------------------------------------------------------
+
+export const ToolboxIcon = createIcon(
+  <g strokeWidth="1.5">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M4 4h6v6h-6z" />
+    <path d="M14 4h6v6h-6z" />
+    <path d="M4 14h6v6h-6z" />
+    <path d="M14 14h6v6h-6z" />
+  </g>,
+  tablerIconProps,
+);
 
 // tabler-icons: present
 export const PlusPromoIcon = createIcon(

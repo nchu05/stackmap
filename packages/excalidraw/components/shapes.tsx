@@ -11,6 +11,7 @@ import {
   TextIcon,
   ImageIcon,
   EraserIcon,
+  ToolboxIcon,
 } from "./icons";
 
 import type { AppClassProperties } from "../types";
@@ -45,45 +46,52 @@ export const SHAPES = [
     fillable: true,
   },
   {
+    icon: ToolboxIcon,
+    value: "toolbox",
+    key: KEYS["5"],
+    numericKey: KEYS["5"],
+    fillable: false,
+  },
+  {
     icon: ArrowIcon,
     value: "arrow",
     key: KEYS.A,
-    numericKey: KEYS["5"],
+    numericKey: KEYS["6"],
     fillable: true,
   },
   {
     icon: LineIcon,
     value: "line",
     key: KEYS.L,
-    numericKey: KEYS["6"],
+    numericKey: KEYS["7"],
     fillable: true,
   },
   {
     icon: FreedrawIcon,
     value: "freedraw",
     key: [KEYS.P, KEYS.X],
-    numericKey: KEYS["7"],
+    numericKey: KEYS["8"],
     fillable: false,
   },
   {
     icon: TextIcon,
     value: "text",
     key: KEYS.T,
-    numericKey: KEYS["8"],
+    numericKey: KEYS["9"],
     fillable: false,
   },
   {
     icon: ImageIcon,
     value: "image",
     key: null,
-    numericKey: KEYS["9"],
+    numericKey: KEYS["0"],
     fillable: false,
   },
   {
     icon: EraserIcon,
     value: "eraser",
     key: KEYS.E,
-    numericKey: KEYS["0"],
+    numericKey: undefined,
     fillable: false,
   },
 ] as const;

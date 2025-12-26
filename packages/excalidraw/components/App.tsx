@@ -4,6 +4,7 @@ import React, { useContext } from "react";
 import { flushSync } from "react-dom";
 import rough from "roughjs/bin/rough";
 import { nanoid } from "nanoid";
+import { ToolItem } from "../data/ToolItem";
 
 import {
   clamp,
@@ -91,6 +92,7 @@ import {
   arrayToMap,
   type EXPORT_IMAGE_TYPES,
   randomInteger,
+  randomId,
   CLASSES,
   Emitter,
   MINIMUM_ARROW_SIZE,
@@ -6201,6 +6203,8 @@ class App extends React.Component<AppProps, AppState> {
       y: scenePointerY,
     };
 
+    this.handleToolWidgetHover(scenePointerX, scenePointerY);
+
     if (gesture.pointers.has(event.pointerId)) {
       gesture.pointers.set(event.pointerId, {
         x: event.clientX,
@@ -6916,8 +6920,6 @@ class App extends React.Component<AppProps, AppState> {
           },
         });
       }
-    } else {
-      setCursor(this.interactiveCanvas, CURSOR_TYPE.AUTO);
     }
   }
 
@@ -6926,6 +6928,19 @@ class App extends React.Component<AppProps, AppState> {
   ) => {
     const scenePointer = viewportCoordsToSceneCoords(event, this.state);
     const { x: scenePointerX, y: scenePointerY } = scenePointer;
+
+    // Check if we clicked on an expand arrow
+    const elements = this.scene.getNonDeletedElements();
+    const elementsMap = this.scene.getNonDeletedElementsMap();
+    const hitArrow = elements.find(el => 
+      el.customData?.isExpandArrow && 
+      el.opacity > 0 &&
+      hitElementBoundingBox(pointFrom<GlobalPoint>(scenePointerX, scenePointerY), el, elementsMap, 10 / this.state.zoom.value)
+    );
+    if (hitArrow) {
+      this.handleWidgetArrowClick(hitArrow);
+      return;
+    }
     this.lastPointerMoveCoords = {
       x: scenePointerX,
       y: scenePointerY,
@@ -7310,7 +7325,8 @@ class App extends React.Component<AppProps, AppState> {
     } else if (
       this.state.activeTool.type !== "eraser" &&
       this.state.activeTool.type !== "hand" &&
-      this.state.activeTool.type !== "image"
+      this.state.activeTool.type !== "image" &&
+      this.state.activeTool.type !== "toolbox"
     ) {
       this.createGenericElementOnPointerDown(
         this.state.activeTool.type,
@@ -11125,55 +11141,483 @@ class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  private getImageDimensions = (
+    dataURL: string,
+  ): Promise<{ width: number; height: number }> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        resolve({ width: img.width, height: img.height });
+      };
+      img.onerror = (error) => reject(error);
+      img.src = dataURL;
+    });
+  };
+
+  private insertLogoWidgets = async (
+    files: File[],
+    sceneX: number,
+    sceneY: number,
+    toolItems?: ToolItem[],
+  ) => {
+    const widgets = await Promise.all(
+      files.map(async (file, index) => {
+        const toolItem = toolItems?.[index];
+        const name = toolItem?.name || file.name.split(".")[0] || "Link";
+        const normalizedFile = await normalizeFile(file);
+
+        const fileId = await ((this.props.generateIdForFile?.(
+          normalizedFile,
+        ) as Promise<FileId>) || generateIdFromFile(normalizedFile));
+
+        const dataURL = await getDataURL(normalizedFile);
+
+        this.addMissingFiles([
+          {
+            mimeType: normalizedFile.type as any,
+            id: fileId,
+            dataURL,
+            created: Date.now(),
+            lastRetrieved: Date.now(),
+          },
+        ]);
+
+        const { width: imgWidth, height: imgHeight } = await this.getImageDimensions(
+          dataURL,
+        );
+
+        const widgetWidth = (184 * 1) / this.state.zoom.value;
+        const widgetHeight = (68 * 1) / this.state.zoom.value;
+
+        const manualScale = toolItem?.scale ?? 0.8;
+        const logoHeight = widgetHeight * manualScale;
+        const logoWidth = logoHeight * (imgWidth / imgHeight);
+
+        const groupId = randomId();
+
+        // Initialize with customData for expansion state
+        const rect = newElement({
+          type: "rectangle",
+          x: sceneX,
+          y: sceneY,
+          width: widgetWidth,
+          height: widgetHeight,
+          strokeColor: this.state.currentItemStrokeColor,
+          backgroundColor: toolItem?.color || this.state.currentItemBackgroundColor,
+          fillStyle: this.state.currentItemFillStyle,
+          strokeWidth: this.state.currentItemStrokeWidth,
+          strokeStyle: this.state.currentItemStrokeStyle,
+          roughness: this.state.currentItemRoughness,
+          opacity: this.state.currentItemOpacity,
+          roundness: this.state.currentItemRoundness
+            ? {
+                type:
+                  this.state.currentItemRoundness === "round"
+                    ? ROUNDNESS.ADAPTIVE_RADIUS
+                    : ROUNDNESS.PROPORTIONAL_RADIUS,
+              }
+            : null,
+          groupIds: [groupId],
+          customData: {
+            isToolWidget: true,
+            toolName: name,
+            expanded: false,
+            link: toolItem?.apiInfo?.link || "",
+            apiKey: toolItem?.apiInfo?.apiKey || "",
+          },
+        });
+
+        const image = newImageElement({
+          type: "image",
+          x: sceneX + (widgetWidth - logoWidth) / 2,
+          y: sceneY + (widgetHeight - logoHeight) / 2,
+          width: logoWidth,
+          height: logoHeight,
+          fileId,
+          opacity: this.state.currentItemOpacity,
+          groupIds: [groupId],
+        });
+
+        // Create arrow element (small triangle pointing down)
+        // Position it to the right of the image
+        const arrowSize = 12 / this.state.zoom.value;
+        const arrowX = sceneX + (widgetWidth - logoWidth) / 2 + logoWidth + 8 / this.state.zoom.value;
+        const arrowY = sceneY + widgetHeight / 2;
+
+        const arrow = newLinearElement({
+          type: "line",
+          x: arrowX,
+          y: arrowY - arrowSize / 2,
+          strokeColor: this.state.currentItemStrokeColor,
+          backgroundColor: "transparent",
+          fillStyle: this.state.currentItemFillStyle,
+          strokeWidth: 2,
+          strokeStyle: this.state.currentItemStrokeStyle,
+          roughness: 0,
+          opacity: 0, // Hidden by default, shown on hover
+          groupIds: [groupId],
+          points: [
+            pointFrom(0, 0),
+            pointFrom(arrowSize, 0),
+            pointFrom(arrowSize / 2, arrowSize),
+            pointFrom(0, 0),
+          ],
+          customData: {
+            isExpandArrow: true,
+            parentRectId: rect.id,
+          },
+        });
+
+        return [rect, image, arrow];
+      }),
+    );
+
+    const allElements = widgets.flat();
+
+    let currentX = sceneX;
+    widgets.forEach((widget) => {
+      const deltaX = currentX - widget[0].x;
+      widget.forEach((el) => {
+        mutateElement(el, this.scene.getNonDeletedElementsMap(), {
+          x: el.x + deltaX,
+        });
+        this.scene.insertElement(el);
+      });
+      currentX += widget[0].width + 20 / this.state.zoom.value;
+    });
+
+    this.updateScene({
+      appState: {
+        selectedElementIds: makeNextSelectedElementIds(
+          Object.fromEntries(allElements.map((el) => [el.id, true])),
+          this.state,
+        ),
+      },
+      elements: this.scene.getElementsIncludingDeleted(),
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+
+    this.addNewImagesToImageCache();
+
+    this.setState({}, () => {
+      this.actionManager.executeAction(actionFinalize);
+    });
+  };
+
+  // ============================================================================
+  // Widget Expansion Helper Methods
+  // ============================================================================
+
+  private handleToolWidgetHover = (scenePointerX: number, scenePointerY: number) => {
+    const elements = this.scene.getNonDeletedElements();
+    const elementsMap = this.scene.getNonDeletedElementsMap();
+    
+    // Use bounding box for more robust hover detection
+    const hoveredWidget = elements.find(el => 
+      el.type === "rectangle" && 
+      el.customData?.isToolWidget &&
+      hitElementBoundingBox(pointFrom<GlobalPoint>(scenePointerX, scenePointerY), el, elementsMap)
+    );
+    
+    // Show/hide arrow based on hover
+    elements.forEach(el => {
+      if (el.customData?.isExpandArrow) {
+        const parentRectId = el.customData.parentRectId as string;
+        const shouldShow = !!hoveredWidget && parentRectId === hoveredWidget.id;
+        const targetOpacity = shouldShow ? 100 : 0;
+        
+        if (el.opacity !== targetOpacity) {
+          this.scene.mutateElement(el, {
+            opacity: targetOpacity,
+          });
+        }
+      }
+    });
+  };
+
+  private handleWidgetArrowClick = (clickedElement: ExcalidrawElement) => {
+    if (clickedElement.customData?.isExpandArrow) {
+      const parentRectId = clickedElement.customData.parentRectId as string;
+      const rect = this.scene.getElement(parentRectId);
+      
+      if (rect && rect.customData?.isToolWidget) {
+        this.toggleWidgetExpansion(rect);
+      }
+    }
+  };
+
+  private toggleWidgetExpansion = (rect: ExcalidrawElement) => {
+    const isExpanded = !!rect.customData?.expanded;
+    const newExpanded = !isExpanded;
+
+    if (newExpanded) {
+    const elements = this.scene.getNonDeletedElements();
+    const groupIds = rect.groupIds || [];
+    const groupMembers = elements.filter(el => 
+      el.groupIds?.some(gid => groupIds.includes(gid))
+    );
+    
+    // Select all elements in the group
+    const newSelectedElementIds = groupMembers.reduce((acc, el) => {
+      acc[el.id] = true;
+      return acc;
+    }, {} as { [id: string]: true });
+    
+    // Update selection
+    this.setState({
+      selectedElementIds: makeNextSelectedElementIds(newSelectedElementIds, this.state)
+    }, () => {
+      // This runs after state is updated
+      const { actionManager } = this;
+      if (actionManager) {
+        // First force a re-render to ensure selection is updated
+        this.forceUpdate();
+        
+        // Then bring selected elements to front
+        actionManager.executeAction(actionBringToFront);
+        
+        // Force another update to ensure the change is reflected
+        setTimeout(() => {
+          this.scene.triggerUpdate();
+          this.forceUpdate();
+        }, 0);
+      }
+    });
+  }
+    
+    // Target dimensions
+    const collapsedWidth = 184 / this.state.zoom.value;
+    const collapsedHeight = 68 / this.state.zoom.value;
+    const expandedWidth = 280 / this.state.zoom.value;
+    const expandedHeight = 150 / this.state.zoom.value;
+    
+    const targetWidth = newExpanded ? expandedWidth : collapsedWidth;
+    const targetHeight = newExpanded ? expandedHeight : collapsedHeight;
+    
+    // Store initial values
+    const startWidth = rect.width;
+    const startHeight = rect.height;
+    const startTime = Date.now();
+    const duration = 300; // ms
+
+    if (!newExpanded) {
+      // Remove text elements immediately when starting collapse
+      this.removeWidgetTextFields(rect.id);
+    }
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = easeOut(progress);
+      
+      const currentWidth = startWidth + (targetWidth - startWidth) * eased;
+      const currentHeight = startHeight + (targetHeight - startHeight) * eased;
+      
+      const elementsMap = this.scene.getNonDeletedElementsMap();
+      mutateElement(rect, elementsMap, {
+        width: currentWidth,
+        height: currentHeight,
+        ...(progress === 1 ? {
+          customData: {
+            ...rect.customData,
+            expanded: newExpanded,
+          }
+        } : {})
+      });
+      
+      // Update grouped elements
+      this.updateWidgetGroupedElements(rect.id, currentWidth, currentHeight);
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        this.scene.triggerUpdate();
+        if (newExpanded) {
+          // Create text elements after expansion completes
+          this.createWidgetTextFields(rect.id);
+        }
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  };
+
+  private updateWidgetGroupedElements = (rectId: string, rectWidth: number, rectHeight: number) => {
+    const rect = this.scene.getElement(rectId);
+    if (!rect) return;
+
+    const elements = this.scene.getNonDeletedElements();
+    const elementsMap = this.scene.getNonDeletedElementsMap();
+    const groupIds = rect.groupIds || [];
+    const groupMembers = elements.filter(el =>
+      el.groupIds?.some(gid => groupIds.includes(gid)) &&
+      el.id !== rectId
+    );
+    
+    groupMembers.forEach(el => {
+      if (el.type === "image") {
+        // Center image horizontally in the widget
+        const imgCenterX = rect.x + rectWidth / 2;
+        // Center image vertically in the header part (constant height)
+        const headerHeight = 68 / this.state.zoom.value;
+        const imgCenterY = rect.y + headerHeight / 2;
+        
+        mutateElement(el, elementsMap, {
+          x: imgCenterX - el.width / 2,
+          y: imgCenterY - el.height / 2,
+        });
+      } else if (el.customData?.isExpandArrow) {
+        // Keep arrow to the right of image
+        const image = groupMembers.find(m => m.type === "image");
+        if (image) {
+          const arrowX = image.x + image.width + 8 / this.state.zoom.value;
+          // Center arrow vertically relative to image
+          const arrowY = image.y + image.height / 2 - el.height / 2;
+          
+          mutateElement(el, elementsMap, {
+            x: arrowX,
+            y: arrowY,
+          });
+        }
+      }
+    });
+
+    this.scene.triggerUpdate();
+  };
+
+  private createWidgetTextFields = (rectId: string) => {
+    const rect = this.scene.getElement(rectId);
+    if (!rect) return;
+
+    const groupIds = rect.groupIds || [];
+    const padding = 10 / this.state.zoom.value;
+    const fieldHeight = 40 / this.state.zoom.value;
+    const labelWidth = 60 / this.state.zoom.value;
+    const fontSize = Math.max(12, 12 / this.state.zoom.value);
+    
+    // Link label
+    const linkLabel = newTextElement({
+      x: rect.x + padding,
+      y: rect.y + rect.height - fieldHeight * 1.95,
+      fontSize,
+      fontFamily: 1,
+      text: "Link:",
+      textAlign: "left",
+      verticalAlign: "middle",
+      groupIds,
+      opacity: rect.opacity,
+      customData: {
+        isWidgetField: true,
+        parentRectId: rect.id,
+        fieldType: "label",
+      },
+    });
+    
+    // Link value (editable)
+    const linkValue = newTextElement({
+      x: rect.x + padding * 2 + labelWidth,
+      y: rect.y + rect.height - fieldHeight * 1.95,
+      fontSize,
+      fontFamily: 1,
+      text: (rect.customData?.link as string) || "",
+      textAlign: "left",
+      verticalAlign: "middle",
+      groupIds,
+      opacity: rect.opacity,
+      customData: {
+        isWidgetField: true,
+        parentRectId: rect.id,
+        fieldType: "link",
+      },
+    });
+    
+    // API Key label
+    const apiKeyLabel = newTextElement({
+      x: rect.x + padding,
+      y: rect.y + rect.height - fieldHeight * 1,
+      fontSize,
+      fontFamily: 1,
+      text: "API Key:",
+      textAlign: "left",
+      verticalAlign: "middle",
+      groupIds,
+      opacity: rect.opacity,
+      customData: {
+        isWidgetField: true,
+        parentRectId: rect.id,
+        fieldType: "label",
+      },
+    });
+    
+    // API Key value (editable, masked)
+    const apiKeyValue = newTextElement({
+      x: rect.x + padding * 2 + labelWidth,
+      y: rect.y + rect.height - fieldHeight * 1,
+      fontSize,
+      fontFamily: 1,
+      text: rect.customData?.apiKey ? "••••••••" : "",
+      textAlign: "left",
+      verticalAlign: "middle",
+      groupIds,
+      opacity: rect.opacity,
+      customData: {
+        isWidgetField: true,
+        parentRectId: rect.id,
+        fieldType: "apiKey",
+        actualValue: rect.customData?.apiKey || "",
+      },
+    });
+    
+    // Insert all text elements
+    [linkLabel, linkValue, apiKeyLabel, apiKeyValue].forEach(el => {
+      this.scene.insertElement(el);
+    });
+    
+    this.scene.triggerUpdate();
+  };
+
+  private removeWidgetTextFields = (rectId: string) => {
+    const elementsMap = this.scene.getNonDeletedElementsMap();
+    const elements = this.scene.getElementsIncludingDeleted();
+    const fieldsToRemove = elements.filter(el =>
+      !el.isDeleted &&
+      el.customData?.isWidgetField &&
+      el.customData?.parentRectId === rectId
+    );
+    
+    if (fieldsToRemove.length > 0) {
+      fieldsToRemove.forEach(el => {
+        mutateElement(el, elementsMap, { isDeleted: true });
+      });
+      // Force a full scene refresh to remove the elements from the non-deleted array
+      this.scene.replaceAllElements(this.scene.getElementsIncludingDeleted());
+    }
+  };
+
+
+
   private insertImages = async (
     imageFiles: File[],
     sceneX: number,
     sceneY: number,
   ) => {
-    const gridPadding = 50 / this.state.zoom.value;
-    // Create, position, and insert placeholders
-    const placeholders = positionElementsOnGrid(
-      imageFiles.map(() => this.newImagePlaceholder({ sceneX, sceneY })),
-      sceneX,
-      sceneY,
-      gridPadding,
-    );
-    placeholders.forEach((el) => this.scene.insertElement(el));
-
-    // Create, position, insert and select initialized (replacing placeholders)
-    const initialized = await Promise.all(
-      placeholders.map(async (placeholder, i) => {
-        try {
-          return await this.initializeImage(
-            placeholder,
-            await normalizeFile(imageFiles[i]),
-          );
-        } catch (error: any) {
-          this.setState({
-            errorMessage: error.message || t("errors.imageInsertError"),
-          });
-          return newElementWith(placeholder, { isDeleted: true });
-        }
+    const images = await Promise.all(
+      imageFiles.map(async (imageFile) => {
+        const placeholder = this.newImagePlaceholder({ sceneX, sceneY });
+        this.scene.insertElement(placeholder);
+        return this.initializeImage(placeholder, imageFile);
       }),
     );
-    const initializedMap = arrayToMap(initialized);
 
-    const positioned = positionElementsOnGrid(
-      initialized.filter((el) => !el.isDeleted),
-      sceneX,
-      sceneY,
-      gridPadding,
-    );
-    const positionedMap = arrayToMap(positioned);
-
+    const elementsMap = arrayToMap(images);
     const nextElements = this.scene
       .getElementsIncludingDeleted()
-      .map((el) => positionedMap.get(el.id) ?? initializedMap.get(el.id) ?? el);
+      .map((el) => elementsMap.get(el.id) || el);
 
     this.updateScene({
       appState: {
         selectedElementIds: makeNextSelectedElementIds(
-          Object.fromEntries(positioned.map((el) => [el.id, true])),
+          Object.fromEntries(images.map((image) => [image.id, true])),
           this.state,
         ),
       },
@@ -11181,18 +11625,71 @@ class App extends React.Component<AppProps, AppState> {
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
 
-    this.setState({}, () => {
-      // actionFinalize after all state values have been updated
-      this.actionManager.executeAction(actionFinalize);
-    });
+    this.addNewImagesToImageCache();
   };
 
   private handleAppOnDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
     const { x: sceneX, y: sceneY } = viewportCoordsToSceneCoords(
       event,
       this.state,
     );
     const dataTransferList = await parseDataTransferEvent(event);
+    const toolboxItemData = dataTransferList.getData(MIME_TYPES.toolboxItem);
+
+    let toolItem: ToolItem | null = null;
+    if (toolboxItemData) {
+      try {
+        toolItem = JSON.parse(toolboxItemData);
+      } catch (e) {
+        console.error("Failed to parse toolbox item data:", e);
+      }
+    }
+
+    const potentialUrls =
+      dataTransferList.getData("text/uri-list") ||
+      dataTransferList.getData("text/plain");
+
+    if (potentialUrls && this.isToolSupported("image")) {
+      const urls = potentialUrls
+        .split("\n")
+        .map((url) => url.trim())
+        .filter((url) => url && !url.startsWith("#"));
+
+      const imageFiles: File[] = [];
+      for (const url of urls) {
+        if (
+          url.startsWith("http") ||
+          url.startsWith("data:image") ||
+          url.startsWith("/")
+        ) {
+          try {
+            const fileName = url.startsWith("data:")
+              ? "image"
+              : url.split("/").pop() || "image";
+            const file = await ImageURLToFile(url, fileName);
+            if (file) {
+              imageFiles.push(file);
+            }
+          } catch (error: any) {
+            console.error("Error fetching image from URL:", url, error);
+          }
+        }
+      }
+
+      if (imageFiles.length > 0) {
+        if (toolItem) {
+          return this.insertLogoWidgets(
+            imageFiles,
+            sceneX,
+            sceneY,
+            new Array(imageFiles.length).fill(toolItem),
+          );
+        }
+        return this.insertImages(imageFiles, sceneX, sceneY);
+      }
+    }
 
     // must be retrieved first, in the same frame
     const fileItems = dataTransferList.getFiles();
@@ -11235,6 +11732,14 @@ class App extends React.Component<AppProps, AppState> {
       .filter((file) => isSupportedImageFile(file));
 
     if (imageFiles.length > 0 && this.isToolSupported("image")) {
+      if (toolItem) {
+        return this.insertLogoWidgets(
+          imageFiles,
+          sceneX,
+          sceneY,
+          new Array(imageFiles.length).fill(toolItem),
+        );
+      }
       return this.insertImages(imageFiles, sceneX, sceneY);
     }
     const excalidrawLibrary_ids = dataTransferList.getData(

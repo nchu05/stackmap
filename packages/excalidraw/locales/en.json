@@ -313,7 +313,8 @@
     "hand": "Hand (panning tool)",
     "extraTools": "More tools",
     "mermaidToExcalidraw": "Mermaid to Excalidraw",
-    "convertElementType": "Toggle shape type"
+    "convertElementType": "Toggle shape type",
+    "toolbox": "Toolbox"
   },
   "element": {
     "rectangle": "Rectangle",
@@ -334,7 +335,8 @@
   "headings": {
     "canvasActions": "Canvas actions",
     "selectedShapeActions": "Selected shape actions",
-    "shapes": "Shapes"
+    "shapes": "Shapes",
+    "toolbox": "Toolbox"
   },
   "hints": {
     "dismissSearch": "{{shortcut}} to dismiss search",
